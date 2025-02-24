@@ -39,6 +39,7 @@ $(document).ready(function() {
 
   function insertMessage() {
     msg = $('.message-input').val();
+    console.log(msg);
     if ($.trim(msg) == '') {
       return false;
     }
@@ -51,7 +52,7 @@ $(document).ready(function() {
       .then((response) => {
         console.log(response);
         var data = response.data;
-
+        
         if (data.messages && data.messages.length > 0) {
           console.log('received ' + data.messages.length + ' messages');
 
