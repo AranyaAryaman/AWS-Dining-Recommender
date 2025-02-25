@@ -1,7 +1,5 @@
 # AWS Dining Suggestions Bot
 
-ABOUT
-This project is a part of the project component for the course - Cloud Computing and Applications (CS-GY 9223, New York University)
 
 FRONTEND (HTML, JavaScript, CSS)
 The frontend is hosted in AWS S3 and provides a web-app user interface to interact with the chat bot. Many open source libraries and frameworks were used to design the UI/UX of the bot.
