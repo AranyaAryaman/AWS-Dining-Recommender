@@ -12,6 +12,8 @@ sqs = boto3.client("sqs")
 SQS_QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/222634405207/dining-bot"
 
 ALLOWED_CUISINES = {"indian", "thai", "chinese", "mexican", "kosher", "continental"}
+dynamodb = boto3.resource("dynamodb")
+table = dynamodb.Table("stateInformation")
 
 def validate_email(email):
     """Check if the given email is valid."""
@@ -64,11 +66,52 @@ def validate_slots(slots):
 
     return {"slot_to_elicit": None, "error_message": None}
 
+def get_past_details():
+    try:
+        response = table.get_item(Key={"id": "user"})  
+        if "Item" in response:
+            return response["Item"].get("cuisine"), response["Item"].get("location")
+    except Exception as e:
+        logger.error(f"DynamoDB Error: {e}")
+    return None, None
+
+def update_past_details(cuisine, location):
+    try:
+        table.put_item(Item={"id": "user", "cuisine": cuisine, "location": location})
+    except Exception as e:
+        logger.error(f"Failed to update stateInformation table: {e}")
+
 def lambda_handler(event, context):
     """Lex bot Lambda fulfillment function with immediate error messages for invalid inputs."""
     intent = event.get("sessionState", {}).get("intent", {})
+    intent_name = event.get("sessionState", {}).get("intent", {}).get("name")
     logger.info(intent)
+    logger.info(intent_name)
     slots = intent.get("slots", {})
+
+    if intent_name == "previousDataIntent":
+        cuisine, location = get_past_details()
+
+        if not cuisine or not location:
+            return {
+                "sessionState": {
+                    "dialogAction": {"type": "Close"},
+                    "intent": {"name": "PastDetailsIntent", "state": "Fulfilled"}
+                },
+                "messages": [{"contentType": "PlainText", "content": "No past searches found. Please provide new details."}]
+            }
+
+        # Pre-fill slots for DiningSuggestionsIntent
+        slots["Cuisine"] = {"value": {"interpretedValue": cuisine}}
+        slots["Location"] = {"value": {"interpretedValue": location}}
+
+        return {
+            "sessionState": {
+                "dialogAction": {"type": "ElicitSlot", "slotToElicit": "NumberOfPeople"},
+                "intent": {"name": "DiningSuggestionsIntent", "slots": slots}
+            },
+            "messages": [{"contentType": "PlainText", "content": f"Using past details: {cuisine} cuisine in {location}. How many people?"}]
+        }
 
     validation_result = validate_slots(slots)
 
@@ -102,6 +145,8 @@ def lambda_handler(event, context):
         "Location": slots["Location"]["value"]["interpretedValue"],
     }
     logger.info(f"Extracted data: {extracted_data}")
+
+    update_past_details(extracted_data["Cuisine"], extracted_data["Location"])
 
     logger.info(session_attributes := event.get("sessionAttributes", {}))
     # Check if confirmation has already been given
